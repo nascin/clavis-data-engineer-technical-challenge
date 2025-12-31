@@ -12,7 +12,7 @@ Pipeline de dados robusto e escalável para coleta, processamento e visualizaç�
 ### 1. Clone o repositório
 
 ```bash
-git clone <url-do-repositorio>
+git clone https://github.com/nascin/clavis-data-engineer-technical-challenge.git
 cd clavis-data-engineer-technical-challenge
 ```
 
@@ -141,9 +141,3 @@ rm -rf data/raw/* data/processed/*
 # Reiniciar
 docker-compose up -d
 ```
-
-## Documentação Adicional
-
-Para detalhes técnicos sobre a arquitetura, fluxo de dados, e configurações avançadas, consulte:
-
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Arquitetura detalhada do sistema
