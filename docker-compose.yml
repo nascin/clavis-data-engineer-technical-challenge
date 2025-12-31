@@ -1,0 +1,434 @@
+# ==========================================
+# CLAVIS DATA ENGINEER CHALLENGE
+# Docker Compose - Airflow + ELK Stack
+# ==========================================
+
+---
+x-airflow-common:
+  &airflow-common
+  image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:3.1.5}
+  env_file:
+    - ${ENV_FILE_PATH:-.env}
+  environment:
+    &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+    AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
+    AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-requests pandas python-dotenv}
+    AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
+    # Custom Environment Variables for DAGs
+    COINMARKETCAP_API_KEY: ${COINMARKETCAP_API_KEY:-}
+    TZ: ${TZ:-America/Sao_Paulo}
+  volumes:
+    - ${AIRFLOW_PROJ_DIR:-./airflow}/dags:/opt/airflow/dags
+    - ${AIRFLOW_PROJ_DIR:-./airflow}/logs:/opt/airflow/logs
+    - ${AIRFLOW_PROJ_DIR:-./airflow}/config:/opt/airflow/config
+    - ${AIRFLOW_PROJ_DIR:-./airflow}/plugins:/opt/airflow/plugins
+    - ./data:/opt/airflow/data
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on:
+    &airflow-common-depends-on
+    redis:
+      condition: service_healthy
+    postgres:
+      condition: service_healthy
+
+services:
+  # ==========================================
+  # AIRFLOW DATABASE
+  # ==========================================
+  postgres:
+    image: postgres:16
+    container_name: clavis-postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+    networks:
+      - clavis-network
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    restart: always
+
+  # ==========================================
+  # AIRFLOW MESSAGE BROKER
+  # ==========================================
+  redis:
+    image: redis:7.2-bookworm
+    container_name: clavis-redis
+    expose:
+      - 6379
+    networks:
+      - clavis-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 30s
+      retries: 50
+      start_period: 30s
+    restart: always
+
+  # ==========================================
+  # AIRFLOW API SERVER
+  # ==========================================
+  airflow-apiserver:
+    <<: *airflow-common
+    container_name: clavis-airflow-apiserver
+    command: api-server
+    ports:
+      - "8080:8080"
+    networks:
+      - clavis-network
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  # ==========================================
+  # AIRFLOW SCHEDULER
+  # ==========================================
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: clavis-airflow-scheduler
+    command: scheduler
+    networks:
+      - clavis-network
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  # ==========================================
+  # AIRFLOW DAG PROCESSOR
+  # ==========================================
+  airflow-dag-processor:
+    <<: *airflow-common
+    container_name: clavis-airflow-dag-processor
+    command: dag-processor
+    networks:
+      - clavis-network
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type DagProcessorJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  # ==========================================
+  # AIRFLOW WORKER
+  # ==========================================
+  airflow-worker:
+    <<: *airflow-common
+    container_name: clavis-airflow-worker
+    command: celery worker
+    networks:
+      - clavis-network
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}" || celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    environment:
+      <<: *airflow-common-env
+      DUMB_INIT_SETSID: "0"
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-apiserver:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+
+  # ==========================================
+  # AIRFLOW TRIGGERER
+  # ==========================================
+  airflow-triggerer:
+    <<: *airflow-common
+    container_name: clavis-airflow-triggerer
+    command: triggerer
+    networks:
+      - clavis-network
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  # ==========================================
+  # AIRFLOW INITIALIZATION
+  # ==========================================
+  airflow-init:
+    <<: *airflow-common
+    container_name: clavis-airflow-init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        if [[ -z "$${AIRFLOW_UID}" ]]; then
+          echo
+          echo -e "\033[1;33mWARNING!!!: AIRFLOW_UID not set!\e[0m"
+          echo "If you are on Linux, you SHOULD follow the instructions below to set "
+          echo "AIRFLOW_UID environment variable, otherwise files will be owned by root."
+          echo "For other operating systems you can get rid of the warning with manually created .env file:"
+          echo "    See: https://airflow.apache.org/docs/apache-airflow/stable/howto/docker-compose/index.html#setting-the-right-airflow-user"
+          echo
+        fi
+        one_meg=1048576
+        mem_available=$$(($$(getconf _PHYS_PAGES) * $$(getconf PAGE_SIZE) / one_meg))
+        cpus_available=$$(grep -cE 'cpu[0-9]+' /proc/stat)
+        disk_available=$$(df / | tail -1 | awk '{print $$4}')
+        warning_resources="false"
+        if (( mem_available < 4000 )) ; then
+          echo
+          echo -e "\033[1;33mWARNING!!!: Not enough memory available for Docker.\e[0m"
+          echo "At least 4GB of memory required. You have $$(numfmt --to iec $$((mem_available * one_meg)))"
+          echo
+          warning_resources="true"
+        fi
+        if (( cpus_available < 2 )); then
+          echo
+          echo -e "\033[1;33mWARNING!!!: Not enough CPUS available for Docker.\e[0m"
+          echo "At least 2 CPUs recommended. You have $${cpus_available}"
+          echo
+          warning_resources="true"
+        fi
+        if (( disk_available < one_meg * 10 )); then
+          echo
+          echo -e "\033[1;33mWARNING!!!: Not enough Disk space available for Docker.\e[0m"
+          echo "At least 10 GBs recommended. You have $$(numfmt --to iec $$((disk_available * 1024 )))"
+          echo
+          warning_resources="true"
+        fi
+        if [[ $${warning_resources} == "true" ]]; then
+          echo
+          echo -e "\033[1;33mWARNING!!!: You have not enough resources to run Airflow (see above)!\e[0m"
+          echo "Please follow the instructions to increase amount of resources available:"
+          echo "   https://airflow.apache.org/docs/apache-airflow/stable/howto/docker-compose/index.html#before-you-begin"
+          echo
+        fi
+        echo
+        echo "Creating missing opt dirs if missing:"
+        echo
+        mkdir -v -p /opt/airflow/{logs,dags,plugins,config}
+        mkdir -v -p /opt/airflow/data/{raw,processed}
+        echo
+        echo "Airflow version:"
+        /entrypoint airflow version
+        echo
+        echo "Files in shared volumes:"
+        echo
+        ls -la /opt/airflow/{logs,dags,plugins,config}
+        echo
+        echo "Running airflow config list to create default config file if missing."
+        echo
+        /entrypoint airflow config list >/dev/null
+        echo
+        echo "Change ownership of files in /opt/airflow to $${AIRFLOW_UID}:0"
+        echo
+        chown -R "$${AIRFLOW_UID}:0" /opt/airflow/
+        echo
+        echo "Files in shared volumes:"
+        echo
+        ls -la /opt/airflow/{logs,dags,plugins,config}
+    networks:
+      - clavis-network
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_MIGRATE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-admin}
+      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-admin}
+      _PIP_ADDITIONAL_REQUIREMENTS: ''
+    user: "0:0"
+
+  # ==========================================
+  # ELASTICSEARCH
+  # ==========================================
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION:-8.19.9}
+    container_name: clavis-elasticsearch
+    environment:
+      - node.name=elasticsearch
+      - cluster.name=clavis-elk-cluster
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=${ES_JAVA_OPTS:--Xms512m -Xmx512m}"
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+      - "TZ=${TZ:-America/Sao_Paulo}"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      - clavis-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: always
+
+  # ==========================================
+  # LOGSTASH
+  # ==========================================
+  logstash:
+    image: docker.elastic.co/logstash/logstash:${ELASTIC_VERSION:-8.19.9}
+    container_name: clavis-logstash
+    volumes:
+      - ./stack-elk/config/logstash/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+      - ./stack-elk/config/logstash/pipelines.yml:/usr/share/logstash/config/pipelines.yml:ro
+      - ./stack-elk/config/logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - ./data/raw:/var/log/data:ro
+    ports:
+      - "5044:5044"
+      - "9600:9600"
+      - "5000:5000/tcp"
+      - "5000:5000/udp"
+    environment:
+      - "LS_JAVA_OPTS=${LS_JAVA_OPTS:--Xmx256m -Xms256m}"
+      - "TZ=${TZ:-America/Sao_Paulo}"
+    networks:
+      - clavis-network
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9600/_node/stats || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
+    restart: always
+
+  # ==========================================
+  # KIBANA
+  # ==========================================
+  kibana:
+    image: docker.elastic.co/kibana/kibana:${ELASTIC_VERSION:-8.19.9}
+    container_name: clavis-kibana
+    volumes:
+      - ./stack-elk/config/kibana/kibana.yml:/usr/share/kibana/config/kibana.yml:ro
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - "TZ=${TZ:-America/Sao_Paulo}"
+    networks:
+      - clavis-network
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: always
+
+  # ==========================================
+  # FILEBEAT
+  # ==========================================
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:${ELASTIC_VERSION:-8.19.9}
+    container_name: clavis-filebeat
+    user: root
+    volumes:
+      - ./stack-elk/config/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - ./data/raw:/var/log/data:ro
+      - filebeat-data:/usr/share/filebeat/data
+    command: filebeat -e --strict.perms=false
+    environment:
+      - "TZ=${TZ:-America/Sao_Paulo}"
+    networks:
+      - clavis-network
+    depends_on:
+      logstash:
+        condition: service_healthy
+    restart: always
+
+  # ==========================================
+  # KIBANA SETUP (Auto-import dashboards)
+  # ==========================================
+  kibana-setup:
+    image: python:3.11-slim
+    container_name: clavis-kibana-setup
+    volumes:
+      - ./kibana-setup:/setup
+    environment:
+      - KIBANA_HOST=http://kibana:5601
+      - ELASTICSEARCH_HOST=http://elasticsearch:9200
+      - "TZ=${TZ:-America/Sao_Paulo}"
+    networks:
+      - clavis-network
+    depends_on:
+      kibana:
+        condition: service_healthy
+    command: >
+      bash -c "
+        echo 'Installing dependencies...' &&
+        pip install --no-cache-dir requests &&
+        echo 'Running Kibana setup...' &&
+        python /setup/scripts/setup-kibana.py
+      "
+    restart: "no"
+
+networks:
+  clavis-network:
+    driver: bridge
+    name: clavis-network
+
+volumes:
+  postgres-db-volume:
+    driver: local
+  elasticsearch-data:
+    driver: local
+  filebeat-data:
+    driver: local

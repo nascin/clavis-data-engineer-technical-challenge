@@ -1,0 +1,151 @@
+# ==========================================
+# CLAVIS DATA ENGINEER CHALLENGE
+# Filebeat Configuration
+# ==========================================
+# Collects cryptocurrency data from JSON files
+
+filebeat.inputs:
+  # ==========================================
+  # CRYPTOCURRENCY PRICES INPUT
+  # ==========================================
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/data/crypto_prices_*.json
+
+    # Tags para identificar a origem
+    tags: ["clavis-challenge", "crypto", "coinmarketcap", "prices"]
+
+    # Campos adicionais
+    fields:
+      pipeline: crypto-prices
+      data_source: coinmarketcap
+      data_type: crypto_prices
+
+    # Configurações de leitura
+    tail_files: false
+    ignore_older: 48h
+    close_inactive: 5m
+    clean_inactive: 72h
+
+    # NDJSON format: each line is a complete JSON (no multiline needed!)
+    # Files are saved in NDJSON format by Airflow DAG
+
+  # ==========================================
+  # GLOBAL MARKET METRICS INPUT
+  # ==========================================
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/data/crypto_global_metrics_*.json
+
+    tags: ["clavis-challenge", "crypto", "coinmarketcap", "global-metrics"]
+
+    fields:
+      pipeline: crypto-global-metrics
+      data_source: coinmarketcap
+      data_type: global_metrics
+
+    tail_files: false
+    ignore_older: 48h
+    close_inactive: 5m
+    clean_inactive: 72h
+
+    # NDJSON format: each line is a complete JSON (no multiline needed!)
+    # Files are saved in NDJSON format by Airflow DAG
+
+  # ==========================================
+  # PIPELINE EXECUTION LOGS (Airflow)
+  # ==========================================
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/data/pipeline_execution_*.json
+
+    tags: ["clavis-challenge", "pipeline", "airflow", "monitoring"]
+
+    fields:
+      pipeline: pipeline-metrics
+      data_source: airflow
+      data_type: execution_logs
+
+    tail_files: false
+    ignore_older: 48h
+    close_inactive: 5m
+    clean_inactive: 72h
+
+    # NDJSON format: each line is a complete JSON (no multiline needed!)
+    # Files are saved in NDJSON format by Airflow DAG
+
+# ==========================================
+# PROCESSORS
+# ==========================================
+processors:
+  # Add host metadata
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+      netinfo.enabled: false
+
+  # Add cloud metadata
+  - add_cloud_metadata: ~
+
+  # Add Docker metadata
+  - add_docker_metadata: ~
+
+  # Add timestamp
+  - timestamp:
+      field: "@timestamp"
+      layouts:
+        - '2006-01-02T15:04:05Z'
+        - '2006-01-02T15:04:05.999Z'
+        - '2006-01-02T15:04:05.999-07:00'
+      test:
+        - '2019-06-22T16:33:51Z'
+
+  # Drop empty events
+  - drop_event:
+      when:
+        or:
+          - equals:
+              message: ""
+          - not:
+              has_fields: ['@timestamp']
+
+# ==========================================
+# OUTPUT TO LOGSTASH
+# ==========================================
+output.logstash:
+  hosts: ["logstash:5044"]
+
+  # Performance settings
+  worker: 2
+  compression_level: 3
+  loadbalance: true
+
+  # Bulk settings
+  bulk_max_size: 2048
+  timeout: 30s
+
+# ==========================================
+# LOGGING
+# ==========================================
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7
+  permissions: 0644
+  rotateeverybytes: 10485760  # 10MB
+
+# ==========================================
+# MONITORING
+# ==========================================
+monitoring.enabled: false
+
+# ==========================================
+# HTTP ENDPOINT (for health checks)
+# ==========================================
+http.enabled: true
+http.host: 0.0.0.0
+http.port: 5066

@@ -1,0 +1,11 @@
+# ==========================================
+# CLAVIS DATA ENGINEER CHALLENGE
+# Logstash Pipelines Configuration
+# ==========================================
+
+# Main pipeline - routes all cryptocurrency data
+- pipeline.id: main-pipeline
+  path.config: "/usr/share/logstash/pipeline/main-pipeline.conf"
+  pipeline.workers: 2
+  pipeline.batch.size: 125
+  pipeline.batch.delay: 50

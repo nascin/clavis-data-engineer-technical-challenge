@@ -1,0 +1,13 @@
+server.name: kibana
+server.host: "0.0.0.0"
+elasticsearch.hosts: ["http://elasticsearch:9200"]
+monitoring.ui.container.elasticsearch.enabled: true
+
+# Configurações de interface
+i18n.locale: "pt-BR"
+
+# Configurações de segurança para Alerting
+# Chaves de encriptação necessárias para o sistema de alertas
+xpack.encryptedSavedObjects.encryptionKey: "clavis_data_engineer_challenge_encryption_key_32chars"
+xpack.reporting.encryptionKey: "clavis_reporting_encryption_key_minimum_32_characters"
+xpack.security.encryptionKey: "clavis_security_encryption_key_minimum_32_chars"

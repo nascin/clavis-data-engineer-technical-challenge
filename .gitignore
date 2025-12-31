@@ -1,0 +1,113 @@
+# ==========================================
+# CLAVIS DATA ENGINEER CHALLENGE
+# Git Ignore File
+# ==========================================
+
+# ------------------------------------------
+# Environment Variables
+# ------------------------------------------
+
+#.env
+#*.env
+!.env.example
+
+# ------------------------------------------
+# Python
+# ------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.log
+
+# ------------------------------------------
+# Virtual Environments
+# ------------------------------------------
+venv/
+ENV/
+env/
+.venv
+
+# ------------------------------------------
+# Airflow
+# ------------------------------------------
+airflow/logs/*
+!airflow/logs/.gitkeep
+airflow/*.pid
+airflow/*.err
+airflow/*.out
+airflow/airflow.db
+airflow/airflow.cfg
+airflow/webserver_config.py
+airflow/unittests.cfg
+
+# ------------------------------------------
+# Data Files
+# ------------------------------------------
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+
+# ------------------------------------------
+# Logs
+# ------------------------------------------
+logs/*
+!logs/.gitkeep
+stack-elk/logs/*
+!stack-elk/logs/.gitkeep
+*.log
+
+# ------------------------------------------
+# Docker
+# ------------------------------------------
+docker-compose.override.yml
+
+# ------------------------------------------
+# Elasticsearch Data
+# ------------------------------------------
+elasticsearch-data/
+filebeat-data/
+
+# ------------------------------------------
+# IDE
+# ------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ------------------------------------------
+# Temporary Files
+# ------------------------------------------
+*.tmp
+*.bak
+*.cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ------------------------------------------
+# OS
+# ------------------------------------------
+Thumbs.db
+desktop.ini
