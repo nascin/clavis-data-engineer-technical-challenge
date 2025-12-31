@@ -16,17 +16,11 @@ git clone https://github.com/nascin/clavis-data-engineer-technical-challenge.git
 cd clavis-data-engineer-technical-challenge
 ```
 
-### 2. Configure a API Key
+### 2. API Key
 
-O arquivo `.env` já está incluído no repositório para facilitar a execução local.
+A API Key da CoinMarketCap já está configurada no arquivo `.env` para facilitar a execução e teste local do projeto.
 
-**IMPORTANTE**: Esta NÃO é uma prática recomendada para produção. Inseri aqui para facilitar a execução do projeto. Para produção use (AWS Secrets Manager, HashiCorp Vault, etc).
-
-Edite o arquivo `.env` e adicione sua CoinMarketCap API Key, caso não esteja configurado:
-
-```bash
-COINMARKETCAP_API_KEY=sua-api-key-aqui
-```
+**IMPORTANTE**: Esta NÃO é uma prática recomendada para produção. A chave foi incluída apenas para simplificar os testes. Em produção, use serviços de gerenciamento de secrets (AWS Secrets Manager, HashiCorp Vault, etc).
 
 ### 3. Inicie o ambiente
 
