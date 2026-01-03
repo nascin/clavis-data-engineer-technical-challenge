@@ -8,8 +8,6 @@ Este script configura automaticamente o Kibana com:
 - Dashboards
 - Visualizações
 - Alertas/Regras
-
-Autor: Clavis Challenge
 """
 
 import os
@@ -18,7 +16,7 @@ import time
 import json
 import requests
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict
 
 
 class KibanaSetup:
@@ -40,7 +38,7 @@ class KibanaSetup:
                 if response.status_code == 200:
                     print(f"{service_name} está pronto!")
                     return True
-            except requests.exceptions.RequestException as e:
+            except requests.exceptions.RequestException:
                 print(f"   Tentativa {attempt + 1}/{self.max_retries}: {service_name} ainda não está pronto...")
                 time.sleep(self.retry_delay)
 
@@ -67,7 +65,7 @@ class KibanaSetup:
             if check_response.status_code == 200:
                 print(f"Padrão de índice '{pattern}' já existe, pulando...")
                 return True
-        except Exception as e:
+        except Exception:
             pass  # Padrão não existe, continua com a criação
 
         payload = {
@@ -112,7 +110,7 @@ class KibanaSetup:
                         print(f"   {result.get('successCount', 0)} objetos importados com sucesso")
                         return True
                     else:
-                        print(f"   Importação concluída com erros:")
+                        print("   Importação concluída com erros:")
                         for error in result.get('errors', []):
                             print(f"      - {error.get('error', {}).get('message', 'Erro desconhecido')}")
                         return False
@@ -172,7 +170,7 @@ class KibanaSetup:
         try:
             response = requests.post(url, headers=headers, json=rule_config, timeout=30)
             if response.status_code in [200, 201]:
-                print(f"   Alerta criado com sucesso")
+                print("   Alerta criado com sucesso")
                 return True
             else:
                 print(f"   Falha ao criar alerta: {response.status_code}")
@@ -329,9 +327,9 @@ class KibanaSetup:
         print("CONFIGURAÇÃO CONCLUÍDA!")
         print("=" * 60)
         print("\nPontos de Acesso:")
-        print(f"   • Interface do Kibana: http://localhost:5601")
-        print(f"   • Elasticsearch: http://localhost:9200")
-        print(f"   • Interface do Airflow: http://localhost:8080")
+        print("   • Interface do Kibana: http://localhost:5601")
+        print("   • Elasticsearch: http://localhost:9200")
+        print("   • Interface do Airflow: http://localhost:8080")
         print("\nPróximos Passos:")
         print("   1. Acesse a interface do Airflow e execute o DAG crypto_data_pipeline")
         print("   2. Aguarde a coleta de dados de criptomoedas (~2-3 minutos)")

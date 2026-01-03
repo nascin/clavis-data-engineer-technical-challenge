@@ -9,7 +9,6 @@ import logging
 import json
 import sys
 from datetime import datetime
-from typing import Any, Dict, Optional
 
 
 class JSONFormatter(logging.Formatter):

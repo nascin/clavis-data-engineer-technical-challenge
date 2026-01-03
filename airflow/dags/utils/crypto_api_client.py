@@ -41,9 +41,9 @@ class CoinMarketCapClient:
         self.api_key = api_key or os.getenv('COINMARKETCAP_API_KEY')
         if not self.api_key:
             raise ValueError(
-                "CoinMarketCap API key not provided. "
-                "Set COINMARKETCAP_API_KEY environment variable or pass api_key parameter. "
-                "Get your free API key at: https://coinmarketcap.com/api/"
+                "Chave de API do CoinMarketCap não fornecida. "
+                "Configure a variável de ambiente COINMARKETCAP_API_KEY ou passe o parâmetro api_key. "
+                "Obtenha sua chave de API gratuita em: https://coinmarketcap.com/api/"
             )
 
         self.timeout = timeout
@@ -60,10 +60,10 @@ class CoinMarketCapClient:
         """
         session = requests.Session()
 
-        # Estratégia de retry
+        # Configura estratégia de retry com backoff exponencial
         retry_strategy = Retry(
             total=5,
-            backoff_factor=2,  # Aguarda 1, 2, 4, 8, 16 segundos
+            backoff_factor=2,  # Aguarda progressivamente: 1s, 2s, 4s, 8s, 16s entre tentativas
             status_forcelist=[429, 500, 502, 503, 504],
             allowed_methods=["GET"]
         )
@@ -72,7 +72,7 @@ class CoinMarketCapClient:
         session.mount("http://", adapter)
         session.mount("https://", adapter)
 
-        # Define a chave de API nos headers
+        # Configura headers padrão com chave de API
         session.headers.update({
             'X-CMC_PRO_API_KEY': self.api_key,
             'Accept': 'application/json'
@@ -101,7 +101,7 @@ class CoinMarketCapClient:
         url = f"{self.BASE_URL}/{endpoint}"
         params = params or {}
 
-        self.logger.info(f"Making request to {endpoint}")
+        self.logger.info(f"Iniciando requisição para endpoint: {endpoint}")
         self.request_count += 1
 
         try:
@@ -111,50 +111,50 @@ class CoinMarketCapClient:
                 timeout=self.timeout
             )
 
-            # Lança exceção para códigos de status ruins
+            # Lança exceção para códigos de status HTTP inválidos
             response.raise_for_status()
 
             data = response.json()
 
-            # Verifica o status da API
+            # Valida o status retornado pela API
             status = data.get('status', {})
             if status.get('error_code') != 0:
-                error_message = status.get('error_message', 'Unknown error')
-                self.logger.error(f"API returned error: {error_message}")
-                raise Exception(f"CoinMarketCap API Error: {error_message}")
+                error_message = status.get('error_message', 'Erro desconhecido')
+                self.logger.error(f"API retornou erro: {error_message}")
+                raise Exception(f"Erro da API CoinMarketCap: {error_message}")
 
-            # Registra uso de créditos
+            # Registra uso de créditos da API
             credit_count = status.get('credit_count', 0)
             self.logger.info(
-                f"Request successful. Credits used: {credit_count}. "
-                f"Total requests this session: {self.request_count}"
+                f"Requisição bem-sucedida. Créditos utilizados: {credit_count}. "
+                f"Total de requisições nesta sessão: {self.request_count}"
             )
 
             return data
 
         except requests.exceptions.HTTPError as e:
-            self.logger.error(f"HTTP error occurred: {e}")
+            self.logger.error(f"Erro HTTP ocorreu: {e}")
             if e.response.status_code == 401:
-                self.logger.error("Invalid API key. Check your COINMARKETCAP_API_KEY")
+                self.logger.error("Chave de API inválida. Verifique sua COINMARKETCAP_API_KEY")
             elif e.response.status_code == 429:
-                self.logger.error("Rate limit exceeded. You've hit the daily/monthly limit.")
-            self.logger.error(f"Response content: {e.response.text}")
+                self.logger.error("Limite de taxa excedido. Você atingiu o limite diário/mensal.")
+            self.logger.error(f"Conteúdo da resposta: {e.response.text}")
             raise
 
         except requests.exceptions.ConnectionError as e:
-            self.logger.error(f"Connection error occurred: {e}")
+            self.logger.error(f"Erro de conexão ocorreu: {e}")
             raise
 
         except requests.exceptions.Timeout as e:
-            self.logger.error(f"Timeout error occurred: {e}")
+            self.logger.error(f"Erro de timeout ocorreu: {e}")
             raise
 
         except requests.exceptions.RequestException as e:
-            self.logger.error(f"Request error occurred: {e}")
+            self.logger.error(f"Erro na requisição ocorreu: {e}")
             raise
 
         except json.JSONDecodeError as e:
-            self.logger.error(f"JSON decode error: {e}")
+            self.logger.error(f"Erro ao decodificar JSON: {e}")
             raise
 
     def get_latest_listings(
@@ -236,7 +236,7 @@ class CoinMarketCapClient:
             response = self._make_request('cryptocurrency/trending/latest')
             return response.get('data', [])
         except Exception as e:
-            self.logger.warning(f"Trending endpoint not available: {e}")
+            self.logger.warning(f"Endpoint de trending não disponível: {e}")
             return []
 
     def collect_crypto_data(
@@ -260,37 +260,37 @@ class CoinMarketCapClient:
         convert_currencies = convert_currencies or ['USD']
 
         self.logger.info(
-            f"Collecting data for {len(symbols)} cryptocurrencies "
-            f"in {len(convert_currencies)} currencies"
+            f"Coletando dados de {len(symbols)} criptomoedas "
+            f"em {len(convert_currencies)} moedas"
         )
 
-        # Armazenamento para dados combinados
-        crypto_data_map = {}  # symbol -> enriched_data
+        # Armazena dados combinados de todas as requisições
+        crypto_data_map = {}  # símbolo -> dados_enriquecidos
         failed_symbols = set()
 
-        # Processa em lotes (API permite múltiplos símbolos em uma chamada)
-        batch_size = 100  # Limite da API
+        # Processa em lotes (API permite múltiplos símbolos por chamada)
+        batch_size = 100  # Limite máximo da API
 
         # Busca dados para cada moeda separadamente (limitação do plano gratuito)
         for currency in convert_currencies:
-            self.logger.info(f"Fetching data in {currency}...")
+            self.logger.info(f"Buscando dados em {currency}...")
 
             for i in range(0, len(symbols), batch_size):
                 batch = symbols[i:i + batch_size]
 
                 try:
                     self.logger.info(
-                        f"Fetching batch {i//batch_size + 1} for {currency}: {', '.join(batch)}"
+                        f"Processando lote {i//batch_size + 1} para {currency}: {', '.join(batch)}"
                     )
 
-                    # Plano gratuito: apenas 1 moeda por chamada
+                    # Restrição do plano gratuito: apenas 1 moeda por chamada
                     quotes = self.get_quotes_by_symbol(batch, convert=currency)
 
                     for symbol in batch:
                         if symbol in quotes:
                             data = quotes[symbol]
 
-                            # Inicializa enriched_data se for a primeira moeda
+                            # Inicializa dados enriquecidos na primeira moeda processada
                             if symbol not in crypto_data_map:
                                 crypto_data_map[symbol] = {
                                     '@timestamp': datetime.utcnow().isoformat() + 'Z',
@@ -308,7 +308,7 @@ class CoinMarketCapClient:
                                     'quotes': {}
                                 }
 
-                            # Adiciona dados de cotação para esta moeda
+                            # Adiciona cotações da moeda atual ao registro da criptomoeda
                             quote_data = data.get('quote', {})
                             if currency in quote_data:
                                 curr_data = quote_data[currency]
@@ -329,26 +329,25 @@ class CoinMarketCapClient:
                                 }
                         else:
                             failed_symbols.add(symbol)
-                            self.logger.warning(f"No data returned for symbol: {symbol}")
+                            self.logger.warning(f"Nenhum dado retornado para o símbolo: {symbol}")
 
-                    # Limitação de taxa: Plano gratuito tem 333 chamadas/dia
-                    # Pausa entre lotes para evitar atingir o limite de taxa
+                    # Aguarda entre lotes para evitar exceder limite de taxa (333 chamadas/dia no plano gratuito)
                     time.sleep(0.5)
 
                 except Exception as e:
-                    self.logger.error(f"Failed to fetch batch for {currency}: {e}")
+                    self.logger.error(f"Falha ao buscar lote para {currency}: {e}")
                     failed_symbols.update(batch)
 
-        # Converte o mapa em lista
+        # Converte mapa de símbolos em lista de resultados
         results = list(crypto_data_map.values())
 
         if failed_symbols:
             self.logger.warning(
-                f"Failed to fetch data for {len(failed_symbols)} symbols: "
+                f"Falha ao buscar dados para {len(failed_symbols)} símbolos: "
                 f"{', '.join(failed_symbols)}"
             )
 
-        self.logger.info(f"Successfully collected {len(results)} cryptocurrency records")
+        self.logger.info(f"Coletados com sucesso {len(results)} registros de criptomoedas")
 
         return results
 
@@ -376,13 +375,13 @@ class CoinMarketCapClient:
                 'quotes': {}
             }
 
-            # Busca dados para cada moeda separadamente (limitação do plano gratuito)
+            # Busca métricas para cada moeda separadamente (limitação do plano gratuito)
             for currency in convert_currencies:
-                self.logger.info(f"Fetching global metrics in {currency}...")
+                self.logger.info(f"Buscando métricas globais em {currency}...")
 
                 data = self.get_global_metrics(convert=currency)
 
-                # Define metadados apenas da primeira moeda
+                # Preenche metadados gerais apenas na primeira iteração
                 if not enriched_data.get('active_cryptocurrencies'):
                     enriched_data.update({
                         'active_cryptocurrencies': data.get('active_cryptocurrencies'),
@@ -397,7 +396,7 @@ class CoinMarketCapClient:
                         'last_updated': data.get('last_updated')
                     })
 
-                # Extrai dados de cotação para esta moeda
+                # Extrai cotações globais para a moeda atual
                 quote_data = data.get('quote', {})
                 if currency in quote_data:
                     curr_data = quote_data[currency]
@@ -409,13 +408,13 @@ class CoinMarketCapClient:
                         'last_updated': curr_data.get('last_updated')
                     }
 
-                # Pausa entre chamadas de moeda
+                # Aguarda entre chamadas para respeitar limite de taxa
                 time.sleep(0.5)
 
             return enriched_data
 
         except Exception as e:
-            self.logger.error(f"Failed to fetch global market data: {e}")
+            self.logger.error(f"Falha ao buscar dados globais do mercado: {e}")
             raise
 
     def close(self):

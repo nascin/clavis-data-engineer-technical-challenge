@@ -1,9 +1,9 @@
 # ==========================================
-# CLAVIS DATA ENGINEER CHALLENGE
-# Logstash Pipelines Configuration
+# DESAFIO DATA ENGINEER CLAVIS
+# Configuração de Pipelines do Logstash
 # ==========================================
 
-# Main pipeline - routes all cryptocurrency data
+# Pipeline principal - roteia todos os dados de criptomoedas
 - pipeline.id: main-pipeline
   path.config: "/usr/share/logstash/pipeline/main-pipeline.conf"
   pipeline.workers: 2

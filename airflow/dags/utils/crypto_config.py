@@ -234,38 +234,38 @@ class CryptoConfig:
 
         config_str = f"""
 ╔════════════════════════════════════════════════════════════╗
-║     CLAVIS DATA ENGINEER CHALLENGE - CRYPTO CONFIG        ║
+║     DESAFIO CLAVIS DATA ENGINEER - CONFIGURAÇÃO CRIPTO     ║
 ╚════════════════════════════════════════════════════════════╝
 
-🪙 API Configuration:
+API Configuration:
    • CoinMarketCap API Key: {'✓ Configured' if cls.COINMARKETCAP_API_KEY else '✗ Missing'}
 
-💰 Cryptocurrencies to Monitor ({len(symbols)}):
+Cryptocurrencies to Monitor ({len(symbols)}):
    {', '.join(symbols)}
 
-💵 Fiat Currencies ({len(currencies)}):
+Fiat Currencies ({len(currencies)}):
    {', '.join(currencies)}
 
-⏱️  Collection Settings:
+Collection Settings:
    • Interval: {cls.COLLECTION_INTERVAL_MINUTES} minutes
    • Max Retries: {cls.MAX_RETRIES}
    • Timeout: {cls.REQUEST_TIMEOUT_SECONDS}s
 
-🚨 Alert Thresholds:
+Alert Thresholds:
    • Price Change: ≥ {cls.PRICE_CHANGE_ALERT_THRESHOLD}%
    • Min Volume: ≥ ${cls.VOLUME_ALERT_THRESHOLD_MIN:,.0f}
    • Market Cap Change: ≥ ${cls.MARKET_CAP_CHANGE_THRESHOLD:,.0f}
 
-📊 API Rate Limits (Free Tier):
+API Rate Limits (Free Tier):
    • Daily: {cls.DAILY_API_CALL_LIMIT} calls/day
    • Monthly: {cls.MONTHLY_API_CALL_LIMIT} calls/month
    • Recommended interval: ≥ 5 minutes
 
-💾 Data Retention:
+Data Retention:
    • Raw Data: {cls.RAW_DATA_RETENTION_DAYS} days
    • Processed Data: {cls.PROCESSED_DATA_RETENTION_DAYS} days
 
-📧 Notifications:
+Notifications:
    • Email: {'✓ ' + cls.ALERT_EMAIL if cls.ALERT_EMAIL else '✗ Not configured'}
    • Slack: {'✓ Configured' if cls.SLACK_WEBHOOK_URL else '✗ Not configured'}
 

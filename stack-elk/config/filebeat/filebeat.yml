@@ -1,98 +1,104 @@
 # ==========================================
-# CLAVIS DATA ENGINEER CHALLENGE
-# Filebeat Configuration
+# DESAFIO TÉCNICO DATA ENGINEER - CLAVIS
+# Configuração do Filebeat
 # ==========================================
-# Collects cryptocurrency data from JSON files
+# Coleta dados de criptomoedas de arquivos JSON
 
 filebeat.inputs:
   # ==========================================
-  # CRYPTOCURRENCY PRICES INPUT
+  # INPUT DE PREÇOS DE CRIPTOMOEDAS
   # ==========================================
   - type: log
     enabled: true
     paths:
       - /var/log/data/crypto_prices_*.json
 
-    # Tags para identificar a origem
+    # Tags para identificar a origem dos dados
     tags: ["clavis-challenge", "crypto", "coinmarketcap", "prices"]
 
-    # Campos adicionais
+    # Campos personalizados adicionados a cada evento
     fields:
       pipeline: crypto-prices
       data_source: coinmarketcap
       data_type: crypto_prices
 
-    # Configurações de leitura
-    tail_files: false
-    ignore_older: 48h
-    close_inactive: 5m
-    clean_inactive: 72h
+    # Configurações de leitura de arquivos
+    tail_files: false           # Lê arquivo completo desde o início
+    ignore_older: 48h           # Ignora arquivos mais antigos que 48 horas
+    close_inactive: 5m          # Fecha arquivo após 5 minutos de inatividade
+    clean_inactive: 72h         # Remove estado de arquivos inativos após 72 horas
 
-    # NDJSON format: each line is a complete JSON (no multiline needed!)
-    # Files are saved in NDJSON format by Airflow DAG
+    # Formato NDJSON: cada linha é um JSON completo (não necessita multiline)
+    # Arquivos são salvos em formato NDJSON pela DAG do Airflow
 
   # ==========================================
-  # GLOBAL MARKET METRICS INPUT
+  # INPUT DE MÉTRICAS GLOBAIS DO MERCADO
   # ==========================================
   - type: log
     enabled: true
     paths:
       - /var/log/data/crypto_global_metrics_*.json
 
+    # Tags para identificar métricas globais
     tags: ["clavis-challenge", "crypto", "coinmarketcap", "global-metrics"]
 
+    # Campos personalizados para métricas globais
     fields:
       pipeline: crypto-global-metrics
       data_source: coinmarketcap
       data_type: global_metrics
 
-    tail_files: false
-    ignore_older: 48h
-    close_inactive: 5m
-    clean_inactive: 72h
+    # Configurações de leitura de arquivos
+    tail_files: false           # Lê arquivo completo desde o início
+    ignore_older: 48h           # Ignora arquivos mais antigos que 48 horas
+    close_inactive: 5m          # Fecha arquivo após 5 minutos de inatividade
+    clean_inactive: 72h         # Remove estado de arquivos inativos após 72 horas
 
-    # NDJSON format: each line is a complete JSON (no multiline needed!)
-    # Files are saved in NDJSON format by Airflow DAG
+    # Formato NDJSON: cada linha é um JSON completo (não necessita multiline)
+    # Arquivos são salvos em formato NDJSON pela DAG do Airflow
 
   # ==========================================
-  # PIPELINE EXECUTION LOGS (Airflow)
+  # LOGS DE EXECUÇÃO DO PIPELINE (Airflow)
   # ==========================================
   - type: log
     enabled: true
     paths:
       - /var/log/data/pipeline_execution_*.json
 
+    # Tags para identificar logs de execução
     tags: ["clavis-challenge", "pipeline", "airflow", "monitoring"]
 
+    # Campos personalizados para logs do pipeline
     fields:
       pipeline: pipeline-metrics
       data_source: airflow
       data_type: execution_logs
 
-    tail_files: false
-    ignore_older: 48h
-    close_inactive: 5m
-    clean_inactive: 72h
+    # Configurações de leitura de arquivos
+    tail_files: false           # Lê arquivo completo desde o início
+    ignore_older: 48h           # Ignora arquivos mais antigos que 48 horas
+    close_inactive: 5m          # Fecha arquivo após 5 minutos de inatividade
+    clean_inactive: 72h         # Remove estado de arquivos inativos após 72 horas
 
-    # NDJSON format: each line is a complete JSON (no multiline needed!)
-    # Files are saved in NDJSON format by Airflow DAG
+    # Formato NDJSON: cada linha é um JSON completo (não necessita multiline)
+    # Arquivos são salvos em formato NDJSON pela DAG do Airflow
 
 # ==========================================
-# PROCESSORS
+# PROCESSADORES
 # ==========================================
 processors:
-  # Add host metadata
+  # Adiciona metadados do host onde o Filebeat está executando
   - add_host_metadata:
       when.not.contains.tags: forwarded
       netinfo.enabled: false
 
-  # Add cloud metadata
+  # Adiciona metadados de cloud (AWS, GCP, Azure, etc)
   - add_cloud_metadata: ~
 
-  # Add Docker metadata
+  # Adiciona metadados do container Docker
   - add_docker_metadata: ~
 
-  # Add timestamp
+  # Processa e valida timestamps dos eventos
   - timestamp:
       field: "@timestamp"
       layouts:
@@ -102,7 +108,7 @@ processors:
       test:
         - '2019-06-22T16:33:51Z'
 
-  # Drop empty events
+  # Remove eventos vazios ou sem timestamp
   - drop_event:
       when:
         or:
@@ -112,40 +118,40 @@ processors:
               has_fields: ['@timestamp']
 
 # ==========================================
-# OUTPUT TO LOGSTASH
+# SAÍDA PARA LOGSTASH
 # ==========================================
 output.logstash:
   hosts: ["logstash:5044"]
 
-  # Performance settings
-  worker: 2
-  compression_level: 3
-  loadbalance: true
+  # Configurações de desempenho
+  worker: 2                     # Número de workers para processamento paralelo
+  compression_level: 3          # Nível de compressão (0-9, 3 é balanceado)
+  loadbalance: true             # Distribui carga entre múltiplos hosts
 
-  # Bulk settings
-  bulk_max_size: 2048
-  timeout: 30s
+  # Configurações de envio em lote
+  bulk_max_size: 2048          # Tamanho máximo do lote de eventos
+  timeout: 30s                  # Timeout para envio de eventos
 
 # ==========================================
-# LOGGING
+# CONFIGURAÇÃO DE LOGS
 # ==========================================
-logging.level: info
-logging.to_files: true
+logging.level: info                      # Nível de log (debug, info, warning, error)
+logging.to_files: true                   # Habilita gravação em arquivo
 logging.files:
-  path: /var/log/filebeat
-  name: filebeat
-  keepfiles: 7
-  permissions: 0644
-  rotateeverybytes: 10485760  # 10MB
+  path: /var/log/filebeat                # Diretório dos logs
+  name: filebeat                         # Nome base do arquivo de log
+  keepfiles: 7                           # Mantém últimos 7 arquivos de log
+  permissions: 0644                      # Permissões do arquivo (rw-r--r--)
+  rotateeverybytes: 10485760            # Rotaciona a cada 10MB
 
 # ==========================================
-# MONITORING
+# MONITORAMENTO
 # ==========================================
-monitoring.enabled: false
+monitoring.enabled: false                # Desabilita monitoramento interno do Filebeat
 
 # ==========================================
-# HTTP ENDPOINT (for health checks)
+# ENDPOINT HTTP (para health checks)
 # ==========================================
-http.enabled: true
-http.host: 0.0.0.0
-http.port: 5066
+http.enabled: true                       # Habilita endpoint HTTP
+http.host: 0.0.0.0                       # Escuta em todas as interfaces
+http.port: 5066                          # Porta para health checks e métricas
